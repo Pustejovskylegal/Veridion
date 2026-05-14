@@ -127,43 +127,34 @@ async function upsertTenders(sourceId: string, tenders: NormalizedTender[]) {
   let updated = 0;
 
   for (const t of tenders) {
+    const fields = {
+      sourceUrl: t.sourceUrl,
+      title: t.title,
+      description: t.description ?? null,
+      contractingAuthority: t.contractingAuthority ?? null,
+      contractingAuthorityIco: t.contractingAuthorityIco ?? null,
+      cpvCodes: t.cpvCodes ?? null,
+      nuts: t.nuts ?? null,
+      procurementType: t.procurementType ?? null,
+      procedureType: t.procedureType ?? null,
+      estimatedValue: t.estimatedValue ?? null,
+      currency: t.currency ?? "CZK",
+      status: t.status ?? "open",
+      publishedAt: t.publishedAt ?? null,
+      deadlineAt: t.deadlineAt ?? null,
+      raw: t.raw,
+    };
+
     const inserted = await db
       .insert(s.tenders)
       .values({
         sourceId,
         externalId: t.externalId,
-        sourceUrl: t.sourceUrl,
-        title: t.title,
-        contractingAuthority: t.contractingAuthority ?? null,
-        contractingAuthorityIco: t.contractingAuthorityIco ?? null,
-        cpvCodes: t.cpvCodes ?? null,
-        nuts: t.nuts ?? null,
-        procurementType: t.procurementType ?? null,
-        estimatedValue: t.estimatedValue ?? null,
-        currency: t.currency ?? "CZK",
-        status: t.status ?? "open",
-        publishedAt: t.publishedAt ?? null,
-        deadlineAt: t.deadlineAt ?? null,
-        raw: t.raw,
+        ...fields,
       })
       .onConflictDoUpdate({
         target: [s.tenders.sourceId, s.tenders.externalId],
-        set: {
-          sourceUrl: t.sourceUrl,
-          title: t.title,
-          contractingAuthority: t.contractingAuthority ?? null,
-          contractingAuthorityIco: t.contractingAuthorityIco ?? null,
-          cpvCodes: t.cpvCodes ?? null,
-          nuts: t.nuts ?? null,
-          procurementType: t.procurementType ?? null,
-          estimatedValue: t.estimatedValue ?? null,
-          currency: t.currency ?? "CZK",
-          status: t.status ?? "open",
-          publishedAt: t.publishedAt ?? null,
-          deadlineAt: t.deadlineAt ?? null,
-          raw: t.raw,
-          updatedAt: new Date(),
-        },
+        set: { ...fields, updatedAt: new Date() },
       })
       .returning({ id: s.tenders.id, createdAt: s.tenders.createdAt });
 

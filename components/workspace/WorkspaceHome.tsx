@@ -1,20 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Sparkles,
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Calendar,
   ArrowUpRight,
   RefreshCw,
   TrendingUp,
-  ExternalLink,
   Radar,
 } from "lucide-react";
 import type { TenderListItem, WorkspaceStats } from "@/lib/queries/tenders";
+import { cpvPrimaryLabel, procurementTypeLabel } from "@/lib/cpv";
 
 type SyncMeta = {
   code: string;
@@ -34,7 +33,6 @@ const numberFmt = new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 });
 
 function formatValue(val: number | null, currency: string | null): string | null {
   if (val == null) return null;
-  // val je v haléřích → vydělit 100 pro Kč
   const main = val / 100;
   if (main >= 1_000_000) {
     return `${numberFmt.format(Math.round(main / 1_000_000))} mil. ${currency ?? "Kč"}`;
@@ -116,7 +114,7 @@ export function WorkspaceHome({
         <div className="flex items-center gap-2 text-[11px] text-silver-500">
           {lastRun?.lastRunAt && (
             <span>
-              Naposledy aktualizováno{" "}
+              Aktualizováno{" "}
               <span className="text-silver-300">
                 {dateTimeFmt.format(new Date(lastRun.lastRunAt))}
               </span>
@@ -239,78 +237,84 @@ function TenderRow({ t, index }: { t: TenderListItem; index: number }) {
   const value = formatValue(t.estimatedValue, t.currency);
   const deadline = daysUntil(t.deadlineAt);
   const published = t.publishedAt ? dateFmt.format(t.publishedAt) : null;
+  const typeLabel = procurementTypeLabel(t.procurementType);
+  const cpvLabel = cpvPrimaryLabel(t.cpvCodes);
 
   return (
     <motion.li
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.5) }}
-      className="grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.015] transition-colors gap-3"
     >
-      <div className="col-span-12 md:col-span-7 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[9.5px] text-silver-300 uppercase tracking-[0.08em]">
-            {t.sourceCode}
-          </span>
-          <span className="text-[10.5px] text-silver-500 font-mono truncate">
-            {t.externalId.replace(/^[a-z]+:/, "")}
-          </span>
-          {published && (
-            <span className="text-[10px] text-silver-500">· {published}</span>
+      <Link
+        href={`/workspace/tendry/${t.id}`}
+        className="grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors gap-3 group"
+      >
+        <div className="col-span-12 md:col-span-7 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[9.5px] text-silver-300 uppercase tracking-[0.08em]">
+              {t.sourceCode}
+            </span>
+            {typeLabel && (
+              <span className="inline-flex items-center rounded-full bg-accent-500/[0.08] border border-accent-500/15 px-2 py-0.5 text-[10px] text-accent-300">
+                {typeLabel}
+              </span>
+            )}
+            <span className="text-[10.5px] text-silver-500 font-mono truncate">
+              {t.externalId.replace(/^[a-z]+:/, "")}
+            </span>
+            {published && (
+              <span className="text-[10px] text-silver-500">· {published}</span>
+            )}
+          </div>
+          <div className="mt-1.5 text-[13.5px] text-silver-100 group-hover:text-white transition-colors line-clamp-2">
+            {t.title}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-silver-400">
+            {t.contractingAuthority && (
+              <span className="truncate max-w-[40ch]">{t.contractingAuthority}</span>
+            )}
+            {cpvLabel && (
+              <>
+                <span className="text-silver-600">·</span>
+                <span className="text-silver-500">{cpvLabel}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="col-span-6 md:col-span-2 text-[12px] text-silver-200">
+          {value ?? <span className="text-silver-600">—</span>}
+        </div>
+
+        <div className="col-span-6 md:col-span-2">
+          {deadline ? (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] border ${
+                deadline.tone === "alert"
+                  ? "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"
+                  : deadline.tone === "warn"
+                  ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200"
+                  : deadline.tone === "past"
+                  ? "border-white/[0.06] bg-white/[0.02] text-silver-500"
+                  : "border-white/[0.06] bg-white/[0.02] text-silver-300"
+              }`}
+            >
+              <Clock className="h-3 w-3" />
+              {deadline.label}
+            </span>
+          ) : (
+            <span className="text-[11px] text-silver-600">—</span>
           )}
         </div>
-        <a
-          href={t.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-1 group inline-flex items-center gap-1.5 text-[13.5px] text-silver-100 hover:text-white transition-colors line-clamp-2"
-        >
-          {t.title}
-          <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
-        </a>
-        {t.contractingAuthority && (
-          <div className="mt-1 text-[11.5px] text-silver-400 truncate">
-            {t.contractingAuthority}
-          </div>
-        )}
-      </div>
 
-      <div className="col-span-6 md:col-span-2 text-[11.5px] text-silver-300">
-        {value ?? <span className="text-silver-600">—</span>}
-      </div>
-
-      <div className="col-span-6 md:col-span-2">
-        {deadline ? (
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] border ${
-              deadline.tone === "alert"
-                ? "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"
-                : deadline.tone === "warn"
-                ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200"
-                : deadline.tone === "past"
-                ? "border-white/[0.06] bg-white/[0.02] text-silver-500"
-                : "border-white/[0.06] bg-white/[0.02] text-silver-300"
-            }`}
-          >
-            <Clock className="h-3 w-3" />
-            {deadline.label}
+        <div className="col-span-12 md:col-span-1 flex md:justify-end">
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-silver-400 group-hover:text-silver-100 transition-colors">
+            Detail
+            <ArrowUpRight className="h-3 w-3" />
           </span>
-        ) : (
-          <span className="text-[11px] text-silver-600">—</span>
-        )}
-      </div>
-
-      <div className="col-span-12 md:col-span-1 flex md:justify-end">
-        <a
-          href={t.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[11.5px] text-silver-400 hover:text-silver-100 transition-colors"
-        >
-          Detail
-          <ArrowUpRight className="h-3 w-3" />
-        </a>
-      </div>
+        </div>
+      </Link>
     </motion.li>
   );
 }

@@ -116,12 +116,14 @@ export const tenders = pgTable(
     sourceUrl: text("source_url").notNull(),
 
     title: text("title").notNull(),
+    description: text("description"),
     contractingAuthority: text("contracting_authority"), // zadavatel
     contractingAuthorityIco: text("contracting_authority_ico"), // IČO
 
     cpvCodes: text("cpv_codes").array(), // klasifikace zboží/služeb (EU CPV)
     nuts: text("nuts"), // NUTS code (region)
-    procurementType: text("procurement_type"), // dodávky, služby, stavební práce
+    procurementType: text("procurement_type"), // supplies / services / works
+    procedureType: text("procedure_type"), // open / restricted / negotiated / ...
 
     estimatedValue: bigint("estimated_value", { mode: "number" }), // v haléřích (Kč * 100)
     currency: text("currency").default("CZK"),

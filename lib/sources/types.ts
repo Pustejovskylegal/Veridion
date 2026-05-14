@@ -9,11 +9,15 @@ export type NormalizedTender = {
   /** Odkaz na detail tendru ve zdrojovém systému */
   sourceUrl: string;
   title: string;
+  description?: string | null;
   contractingAuthority?: string | null;
   contractingAuthorityIco?: string | null;
   cpvCodes?: string[] | null;
   nuts?: string | null;
+  /** "supplies" | "services" | "works" (z TED contract-nature) */
   procurementType?: string | null;
+  /** "open" | "restricted" | "negotiated" | ... (procedure-type) */
+  procedureType?: string | null;
   /** Hodnota v haléřích (Kč * 100) — pokud neznáme, ponecháme null */
   estimatedValue?: number | null;
   currency?: string | null;

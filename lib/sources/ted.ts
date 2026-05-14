@@ -37,13 +37,16 @@ type TedNotice = {
   "publication-date"?: string;
   "notice-title"?: LocalisedField;
   "title-proc"?: LocalisedField;
+  "description-proc"?: LocalisedField;
   "buyer-name"?: LocalisedField;
   "contract-nature"?: string[];
+  "procedure-type"?: string[];
   "deadline-receipt-tender-date-lot"?: string[];
   "estimated-value-lot"?: number[];
   "estimated-value-cur-lot"?: string[];
   "classification-cpv"?: string[];
   "place-of-performance"?: string[];
+  "place-performance-nuts-proc"?: string[];
   links?: TedLinks;
   [key: string]: unknown;
 };
@@ -57,9 +60,11 @@ const REQUESTED_FIELDS = [
   "publication-number",
   "notice-title",
   "title-proc",
+  "description-proc",
   "publication-date",
   "buyer-name",
   "contract-nature",
+  "procedure-type",
   "deadline-receipt-tender-date-lot",
   "estimated-value-lot",
   "estimated-value-cur-lot",
@@ -123,6 +128,7 @@ function normalise(notice: TedNotice): NormalizedTender | null {
     pickLocalised(notice["notice-title"]) ??
     `TED notice ${externalId}`;
 
+  const description = pickLocalised(notice["description-proc"]);
   const buyer = pickLocalised(notice["buyer-name"]);
   const publishedAt = parseTedDate(notice["publication-date"]);
   const deadlineAt = parseTedDate(pickFirst(notice["deadline-receipt-tender-date-lot"]));
@@ -133,11 +139,13 @@ function normalise(notice: TedNotice): NormalizedTender | null {
     externalId: `ted:${externalId}`,
     sourceUrl: buildSourceUrl(notice.links, externalId),
     title,
+    description,
     contractingAuthority: buyer,
     contractingAuthorityIco: null,
     cpvCodes: notice["classification-cpv"] ?? null,
-    nuts: null,
+    nuts: null, // TED v3 search neexposuje NUTS samostatně; doplníme z NEN/Věstník
     procurementType: pickFirst(notice["contract-nature"]),
+    procedureType: pickFirst(notice["procedure-type"]),
     estimatedValue:
       typeof valueRaw === "number" ? Math.round(valueRaw * 100) : null,
     currency: valueCur ?? null,

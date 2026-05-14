@@ -8,6 +8,13 @@
       "when": 1778780993887,
       "tag": "0000_initial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778782609851,
+      "tag": "0001_tender_description",
+      "breakpoints": true
     }
   ]
 }

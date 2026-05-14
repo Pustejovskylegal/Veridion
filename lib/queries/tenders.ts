@@ -1,5 +1,5 @@
 import { db, s } from "@/lib/db";
-import { desc, eq, sql, and, isNotNull } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 export type TenderListItem = {
   id: string;
@@ -7,6 +7,10 @@ export type TenderListItem = {
   sourceUrl: string;
   title: string;
   contractingAuthority: string | null;
+  cpvCodes: string[] | null;
+  nuts: string | null;
+  procurementType: string | null;
+  procedureType: string | null;
   publishedAt: Date | null;
   deadlineAt: Date | null;
   estimatedValue: number | null;
@@ -16,10 +20,14 @@ export type TenderListItem = {
   sourceCode: string;
 };
 
-/**
- * Vrátí poslední tendry pro workspace home.
- * Defaultně 25 nejnovějších publikovaných.
- */
+export type TenderDetail = TenderListItem & {
+  description: string | null;
+  contractingAuthorityIco: string | null;
+  raw: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export async function listRecentTenders(limit = 25): Promise<TenderListItem[]> {
   const rows = await db
     .select({
@@ -28,6 +36,10 @@ export async function listRecentTenders(limit = 25): Promise<TenderListItem[]> {
       sourceUrl: s.tenders.sourceUrl,
       title: s.tenders.title,
       contractingAuthority: s.tenders.contractingAuthority,
+      cpvCodes: s.tenders.cpvCodes,
+      nuts: s.tenders.nuts,
+      procurementType: s.tenders.procurementType,
+      procedureType: s.tenders.procedureType,
       publishedAt: s.tenders.publishedAt,
       deadlineAt: s.tenders.deadlineAt,
       estimatedValue: s.tenders.estimatedValue,
@@ -42,6 +54,39 @@ export async function listRecentTenders(limit = 25): Promise<TenderListItem[]> {
     .limit(limit);
 
   return rows;
+}
+
+export async function getTenderById(id: string): Promise<TenderDetail | null> {
+  const [row] = await db
+    .select({
+      id: s.tenders.id,
+      externalId: s.tenders.externalId,
+      sourceUrl: s.tenders.sourceUrl,
+      title: s.tenders.title,
+      description: s.tenders.description,
+      contractingAuthority: s.tenders.contractingAuthority,
+      contractingAuthorityIco: s.tenders.contractingAuthorityIco,
+      cpvCodes: s.tenders.cpvCodes,
+      nuts: s.tenders.nuts,
+      procurementType: s.tenders.procurementType,
+      procedureType: s.tenders.procedureType,
+      publishedAt: s.tenders.publishedAt,
+      deadlineAt: s.tenders.deadlineAt,
+      estimatedValue: s.tenders.estimatedValue,
+      currency: s.tenders.currency,
+      status: s.tenders.status,
+      raw: s.tenders.raw,
+      createdAt: s.tenders.createdAt,
+      updatedAt: s.tenders.updatedAt,
+      sourceName: s.sources.name,
+      sourceCode: s.sources.code,
+    })
+    .from(s.tenders)
+    .innerJoin(s.sources, eq(s.tenders.sourceId, s.sources.id))
+    .where(eq(s.tenders.id, id))
+    .limit(1);
+
+  return row ?? null;
 }
 
 export type WorkspaceStats = {
