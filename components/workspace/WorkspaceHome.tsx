@@ -11,9 +11,18 @@ import {
   RefreshCw,
   TrendingUp,
   Radar,
+  GitCompare,
 } from "lucide-react";
 import type { TenderListItem, WorkspaceStats } from "@/lib/queries/tenders";
 import { cpvPrimaryLabel, procurementTypeLabel } from "@/lib/cpv";
+import { ChangeBadge } from "./ChangeBadge";
+
+type TenderRowItem = TenderListItem & {
+  recentChanges: {
+    count: number;
+    topSignificance: "critical" | "important" | "minor";
+  } | null;
+};
 
 type SyncMeta = {
   code: string;
@@ -59,11 +68,13 @@ export function WorkspaceHome({
   tenders,
   stats,
   syncMeta,
+  recentChangesCount,
 }: {
   firstName: string;
-  tenders: TenderListItem[];
+  tenders: TenderRowItem[];
   stats: WorkspaceStats;
   syncMeta: SyncMeta[];
+  recentChangesCount: number;
 }) {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -140,8 +151,13 @@ export function WorkspaceHome({
       {/* Stats */}
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Sledované tendry" value={stats.totalTracked.toString()} Icon={Radar} />
-        <Stat label="Otevřené" value={stats.openTenders.toString()} Icon={CheckCircle2} />
         <Stat label="Nové tento týden" value={`+${stats.publishedThisWeek}`} Icon={TrendingUp} />
+        <Stat
+          label="Změny za 7 dní"
+          value={recentChangesCount.toString()}
+          Icon={GitCompare}
+          href={recentChangesCount > 0 ? "/workspace/zmeny" : undefined}
+        />
         <Stat
           label="Termín do 14 dní"
           value={stats.upcomingDeadlines.toString()}
@@ -208,17 +224,21 @@ function Stat({
   label,
   value,
   Icon,
+  href,
 }: {
   label: string;
   value: string;
   Icon: React.ComponentType<{ className?: string }>;
+  href?: string;
 }) {
-  return (
+  const inner = (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5"
+      className={`rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5 ${
+        href ? "hover:border-white/[0.12] transition-colors" : ""
+      }`}
     >
       <div className="flex items-center justify-between">
         <div className="text-[10.5px] uppercase tracking-[0.16em] text-silver-500">
@@ -231,9 +251,10 @@ function Stat({
       </div>
     </motion.div>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
-function TenderRow({ t, index }: { t: TenderListItem; index: number }) {
+function TenderRow({ t, index }: { t: TenderRowItem; index: number }) {
   const value = formatValue(t.estimatedValue, t.currency);
   const deadline = daysUntil(t.deadlineAt);
   const published = t.publishedAt ? dateFmt.format(t.publishedAt) : null;
@@ -259,6 +280,12 @@ function TenderRow({ t, index }: { t: TenderListItem; index: number }) {
               <span className="inline-flex items-center rounded-full bg-accent-500/[0.08] border border-accent-500/15 px-2 py-0.5 text-[10px] text-accent-300">
                 {typeLabel}
               </span>
+            )}
+            {t.recentChanges && (
+              <ChangeBadge
+                count={t.recentChanges.count}
+                significance={t.recentChanges.topSignificance}
+              />
             )}
             <span className="text-[10.5px] text-silver-500 font-mono truncate">
               {t.externalId.replace(/^[a-z]+:/, "")}

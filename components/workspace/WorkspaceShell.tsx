@@ -5,12 +5,7 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
-  Radar,
-  FileSearch,
-  ShieldCheck,
-  Users,
   GitCompare,
-  Settings,
   Bell,
   Search,
   Sparkles,
@@ -20,11 +15,7 @@ import { cn } from "@/lib/utils";
 
 const nav = [
   { label: "Přehled", href: "/workspace", icon: LayoutDashboard },
-  { label: "Monitoring", href: "/workspace/monitoring", icon: Radar, badge: "24" },
-  { label: "Analýza", href: "/workspace/analyza", icon: FileSearch },
-  { label: "Změny", href: "/workspace/zmeny", icon: GitCompare, badge: "3", highlight: true },
-  { label: "Compliance", href: "/workspace/compliance", icon: ShieldCheck },
-  { label: "Tým", href: "/workspace/tym", icon: Users },
+  { label: "Změny", href: "/workspace/zmeny", icon: GitCompare },
 ];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -71,18 +62,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                       />
                       {item.label}
                     </span>
-                    {item.badge && (
-                      <span
-                        className={cn(
-                          "rounded px-1.5 py-0.5 text-[9.5px] font-medium",
-                          item.highlight
-                            ? "bg-amber-400/10 text-amber-300"
-                            : "bg-white/[0.06] text-silver-300"
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
                   </Link>
                 </li>
               );
@@ -91,13 +70,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-3 border-t border-white/[0.04]">
-          <Link
-            href="/workspace/nastaveni"
-            className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-silver-300 hover:bg-white/[0.03] hover:text-silver-100 transition-colors"
-          >
-            <Settings className="h-3.5 w-3.5 text-silver-500" />
-            Nastavení
-          </Link>
+          <div className="px-2.5 text-[10px] uppercase tracking-[0.16em] text-silver-600">
+            Brzy
+          </div>
+          <div className="mt-2 space-y-0.5 text-[12.5px] text-silver-600">
+            <div className="px-2.5 py-1">Analýza dokumentace</div>
+            <div className="px-2.5 py-1">Compliance vrstva</div>
+            <div className="px-2.5 py-1">Bid workspace</div>
+          </div>
         </div>
       </aside>
 

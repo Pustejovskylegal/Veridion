@@ -40,6 +40,12 @@ export const runStatusEnum = pgEnum("run_status", [
   "partial",
 ]);
 
+export const changeSignificanceEnum = pgEnum("change_significance", [
+  "critical", // deadline moved, status changed
+  "important", // value appeared/changed, type changed
+  "minor", // title text, description text, cpv extensions
+]);
+
 /* -----------------------------------------------------------
  * Multi-tenancy: organizations + memberships
  * Users are managed by Clerk; we mirror the IDs here.
@@ -152,6 +158,28 @@ export const tenders = pgTable(
  * Ingestion run audit — for debugging cron + observability
  * --------------------------------------------------------- */
 
+export const tenderChanges = pgTable(
+  "tender_changes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenderId: uuid("tender_id")
+      .notNull()
+      .references(() => tenders.id, { onDelete: "cascade" }),
+    runId: uuid("run_id").references(() => tenderRuns.id, {
+      onDelete: "set null",
+    }),
+    field: text("field").notNull(), // např. "deadlineAt", "estimatedValue"
+    oldValue: jsonb("old_value"),
+    newValue: jsonb("new_value"),
+    significance: changeSignificanceEnum("significance").notNull().default("minor"),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    tenderIdx: index("tender_changes_tender_idx").on(t.tenderId, t.detectedAt),
+    detectedIdx: index("tender_changes_detected_idx").on(t.detectedAt),
+  })
+);
+
 export const tenderRuns = pgTable("tender_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   sourceId: uuid("source_id")
@@ -238,6 +266,12 @@ export const sourcesRelations = relations(sources, ({ many }) => ({
 export const tendersRelations = relations(tenders, ({ one, many }) => ({
   source: one(sources, { fields: [tenders.sourceId], references: [sources.id] }),
   subscriptions: many(tenderSubscriptions),
+  changes: many(tenderChanges),
+}));
+
+export const tenderChangesRelations = relations(tenderChanges, ({ one }) => ({
+  tender: one(tenders, { fields: [tenderChanges.tenderId], references: [tenders.id] }),
+  run: one(tenderRuns, { fields: [tenderChanges.runId], references: [tenderRuns.id] }),
 }));
 
 export const tenderSubscriptionsRelations = relations(

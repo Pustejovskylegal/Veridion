@@ -15,12 +15,14 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { TenderDetail as TenderDetailType } from "@/lib/queries/tenders";
+import type { TenderChangeRow } from "@/lib/queries/changes";
 import {
   cpvList,
-  cpvPrimaryLabel,
   procedureTypeLabel,
   procurementTypeLabel,
 } from "@/lib/cpv";
+import { fieldLabel } from "@/lib/diff";
+import { GitCompare } from "lucide-react";
 
 const dateFmt = new Intl.DateTimeFormat("cs-CZ", {
   day: "numeric",
@@ -53,7 +55,13 @@ function daysUntil(date: Date | null) {
   return { label: `${days} dní`, tone: "ok" as const };
 }
 
-export function TenderDetail({ tender }: { tender: TenderDetailType }) {
+export function TenderDetail({
+  tender,
+  changes,
+}: {
+  tender: TenderDetailType;
+  changes: TenderChangeRow[];
+}) {
   const [rawOpen, setRawOpen] = useState(false);
   const typeLabel = procurementTypeLabel(tender.procurementType);
   const procLabel = procedureTypeLabel(tender.procedureType);
@@ -221,6 +229,26 @@ export function TenderDetail({ tender }: { tender: TenderDetailType }) {
         </motion.section>
       )}
 
+      {/* Changes history */}
+      {changes.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.18 }}
+          className="mt-10"
+        >
+          <div className="text-[11px] uppercase tracking-[0.18em] text-silver-500 mb-4 inline-flex items-center gap-2">
+            <GitCompare className="h-3.5 w-3.5" />
+            Historie změn ({changes.length})
+          </div>
+          <ul className="space-y-2">
+            {changes.map((c) => (
+              <ChangeItem key={c.id} change={c} />
+            ))}
+          </ul>
+        </motion.section>
+      )}
+
       {/* Raw debug */}
       <motion.section
         initial={{ opacity: 0 }}
@@ -243,6 +271,82 @@ export function TenderDetail({ tender }: { tender: TenderDetailType }) {
           </pre>
         )}
       </motion.section>
+    </div>
+  );
+}
+
+function ChangeItem({ change }: { change: TenderChangeRow }) {
+  const date = new Intl.DateTimeFormat("cs-CZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(change.detectedAt));
+
+  const sigStyles = {
+    critical: "border-rose-400/25 bg-rose-400/[0.06] text-rose-200",
+    important: "border-amber-400/25 bg-amber-400/[0.06] text-amber-200",
+    minor: "border-white/[0.08] bg-white/[0.02] text-silver-300",
+  }[change.significance];
+
+  const sigLabel = {
+    critical: "kritická",
+    important: "důležitá",
+    minor: "drobná",
+  }[change.significance];
+
+  return (
+    <li className="rounded-lg border border-white/[0.06] bg-ink-900/40 p-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${sigStyles}`}>
+            {sigLabel}
+          </span>
+          <span className="text-[13px] text-silver-100">{fieldLabel(change.field)}</span>
+        </div>
+        <span className="text-[10.5px] text-silver-500 tabular-nums">{date}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px]">
+        <ChangeValue label="Bylo" value={change.oldValue} tone="old" />
+        <ChangeValue label="Nyní" value={change.newValue} tone="new" />
+      </div>
+    </li>
+  );
+}
+
+function ChangeValue({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: unknown;
+  tone: "old" | "new";
+}) {
+  const display =
+    value == null
+      ? "—"
+      : Array.isArray(value)
+      ? value.join(", ")
+      : typeof value === "object"
+      ? JSON.stringify(value)
+      : String(value);
+
+  return (
+    <div
+      className={`rounded-md border px-2.5 py-1.5 ${
+        tone === "old"
+          ? "border-rose-400/15 bg-rose-400/[0.04]"
+          : "border-emerald-400/15 bg-emerald-400/[0.04]"
+      }`}
+    >
+      <div className="text-[9.5px] uppercase tracking-[0.14em] text-silver-500">
+        {label}
+      </div>
+      <div className={`mt-0.5 text-[12.5px] ${tone === "old" ? "text-rose-200 line-through decoration-rose-400/40" : "text-emerald-200"} break-words`}>
+        {display}
+      </div>
     </div>
   );
 }
