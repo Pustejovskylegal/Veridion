@@ -80,12 +80,12 @@ export function FinalCTA() {
           className="mt-12 flex flex-wrap items-center justify-center gap-3"
         >
           <a
-            href="#kontakt"
+            href="/sign-up"
             className="group relative inline-flex items-center gap-2 rounded-full bg-silver-50 text-ink-950 text-sm font-medium px-6 py-3.5 hover:bg-white transition-colors shadow-[0_10px_50px_-10px_rgba(255,255,255,0.35)]"
           >
             <span className="absolute -inset-px rounded-full bg-gradient-to-r from-accent-400 via-accent-500 to-accent-400 opacity-0 group-hover:opacity-100 blur transition-opacity" />
             <span className="relative inline-flex items-center gap-2">
-              Požádat o přístup
+              Vyzkoušet zdarma
               <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
                 <path
                   d="M3 6h6M6 3l3 3-3 3"
@@ -98,10 +98,10 @@ export function FinalCTA() {
             </span>
           </a>
           <a
-            href="#kontakt"
+            href="/sign-in"
             className="inline-flex items-center gap-2 rounded-full glass px-6 py-3.5 text-sm text-silver-100 hover:bg-white/[0.06] transition-colors"
           >
-            Promluvit se sales
+            Mám účet
           </a>
         </motion.div>
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +42,7 @@ export function Nav() {
               : "px-2 py-2"
           )}
         >
-          <a href="#" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2.5 group">
             <Logo className="h-6 w-6 text-silver-50" />
             <span className="text-[15px] font-medium tracking-tight text-silver-50">
               Veridion
@@ -48,7 +50,7 @@ export function Nav() {
             <span className="hidden sm:inline-flex ml-2 text-[10px] tracking-[0.16em] uppercase text-silver-400 border border-white/10 rounded-full px-2 py-0.5">
               Enterprise
             </span>
-          </a>
+          </Link>
 
           <nav className="hidden md:flex items-center gap-8">
             {links.map((l) => (
@@ -63,33 +65,51 @@ export function Nav() {
           </nav>
 
           <div className="flex items-center gap-2">
-            <a
-              href="#kontakt"
-              className="hidden sm:inline-flex text-[13.5px] text-silver-300 hover:text-silver-50 px-3 py-2 transition-colors"
-            >
-              Přihlásit se
-            </a>
-            <a
-              href="#demo"
-              className="inline-flex items-center gap-1.5 rounded-full bg-silver-50 text-ink-950 text-[13px] font-medium px-4 py-2 hover:bg-white transition-colors"
-            >
-              Domluvit demo
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className="opacity-70"
+            <SignedOut>
+              <Link
+                href="/sign-in"
+                className="hidden sm:inline-flex text-[13.5px] text-silver-300 hover:text-silver-50 px-3 py-2 transition-colors"
               >
-                <path
-                  d="M3 6h6M6 3l3 3-3 3"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </a>
+                Přihlásit se
+              </Link>
+              <Link
+                href="/sign-up"
+                className="inline-flex items-center gap-1.5 rounded-full bg-silver-50 text-ink-950 text-[13px] font-medium px-4 py-2 hover:bg-white transition-colors"
+              >
+                Vyzkoušet zdarma
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="opacity-70">
+                  <path
+                    d="M3 6h6M6 3l3 3-3 3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+            </SignedOut>
+            <SignedIn>
+              <Link
+                href="/workspace"
+                className="inline-flex items-center gap-1.5 rounded-full bg-silver-50 text-ink-950 text-[13px] font-medium px-4 py-2 hover:bg-white transition-colors"
+              >
+                Otevřít workspace
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="opacity-70">
+                  <path
+                    d="M3 6h6M6 3l3 3-3 3"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+              <UserButton
+                appearance={{
+                  elements: { avatarBox: "h-7 w-7 ring-1 ring-white/[0.08]" },
+                }}
+              />
+            </SignedIn>
           </div>
         </div>
       </div>

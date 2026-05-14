@@ -62,10 +62,10 @@ export function Hero() {
           className="mt-10 flex flex-wrap items-center justify-center gap-3"
         >
           <a
-            href="#demo"
+            href="/sign-up"
             className="inline-flex items-center gap-2 rounded-full bg-silver-50 text-ink-950 text-sm font-medium px-5 py-3 hover:bg-white transition-colors shadow-[0_8px_30px_-10px_rgba(255,255,255,0.25)]"
           >
-            Domluvit demo
+            Vyzkoušet zdarma
             <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
               <path d="M3 6h6M6 3l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
