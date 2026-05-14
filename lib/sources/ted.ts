@@ -80,7 +80,8 @@ function parseTedDate(raw?: string | null): Date | null {
 }
 
 function buildSourceUrl(links?: TedLinks, pubNumber?: string): string {
-  if (links?.htmlDirect?.CES) return links.htmlDirect.CES;
+  // Prefer the user-friendly detail page (`html`), never the raw `htmlDirect`
+  // which TED serves as a downloadable file with Content-Disposition.
   if (links?.html?.CES) return links.html.CES;
   if (links?.html?.ENG) return links.html.ENG;
   if (pubNumber) return `https://ted.europa.eu/cs/notice/-/detail/${pubNumber}`;
