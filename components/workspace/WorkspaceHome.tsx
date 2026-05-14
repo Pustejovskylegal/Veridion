@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Sparkles,
@@ -8,159 +9,198 @@ import {
   AlertTriangle,
   Calendar,
   ArrowUpRight,
-  Plus,
-  FileText,
+  RefreshCw,
   TrendingUp,
+  ExternalLink,
+  Radar,
 } from "lucide-react";
+import type { TenderListItem, WorkspaceStats } from "@/lib/queries/tenders";
 
-export function WorkspaceHome({ firstName }: { firstName: string }) {
+type SyncMeta = {
+  code: string;
+  name: string;
+  lastRunAt: Date | null;
+  enabled: boolean;
+};
+
+const dateFmt = new Intl.DateTimeFormat("cs-CZ", { day: "2-digit", month: "2-digit" });
+const dateTimeFmt = new Intl.DateTimeFormat("cs-CZ", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const numberFmt = new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 });
+
+function formatValue(val: number | null, currency: string | null): string | null {
+  if (val == null) return null;
+  // val je v haléřích → vydělit 100 pro Kč
+  const main = val / 100;
+  if (main >= 1_000_000) {
+    return `${numberFmt.format(Math.round(main / 1_000_000))} mil. ${currency ?? "Kč"}`;
+  }
+  if (main >= 1_000) {
+    return `${numberFmt.format(Math.round(main / 1_000))} tis. ${currency ?? "Kč"}`;
+  }
+  return `${numberFmt.format(Math.round(main))} ${currency ?? "Kč"}`;
+}
+
+function daysUntil(date: Date | null): { label: string; tone: "ok" | "warn" | "alert" | "past" } | null {
+  if (!date) return null;
+  const ms = date.getTime() - Date.now();
+  const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+  if (days < 0) return { label: "po termínu", tone: "past" };
+  if (days === 0) return { label: "dnes", tone: "alert" };
+  if (days <= 7) return { label: `${days} dní`, tone: "alert" };
+  if (days <= 30) return { label: `${days} dní`, tone: "warn" };
+  return { label: `${days} dní`, tone: "ok" };
+}
+
+export function WorkspaceHome({
+  firstName,
+  tenders,
+  stats,
+  syncMeta,
+}: {
+  firstName: string;
+  tenders: TenderListItem[];
+  stats: WorkspaceStats;
+  syncMeta: SyncMeta[];
+}) {
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  async function triggerSync() {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const res = await fetch("/api/admin/sync", { method: "POST" });
+      if (!res.ok) throw new Error(`Sync failed (${res.status})`);
+      window.location.reload();
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : String(e));
+      setSyncing(false);
+    }
+  }
+
+  const lastRun = syncMeta
+    .filter((s) => s.lastRunAt)
+    .sort(
+      (a, b) =>
+        new Date(b.lastRunAt!).getTime() - new Date(a.lastRunAt!).getTime()
+    )[0];
+
   return (
     <div className="px-6 md:px-10 py-8 md:py-10 max-w-[1400px] mx-auto">
       {/* Greeting */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-wrap items-end justify-between gap-4"
       >
-        <div className="text-[11px] uppercase tracking-[0.18em] text-silver-500">
-          Pondělí · 14. 5. 2026
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-silver-500">
+            {dateFmt.format(new Date())}
+          </div>
+          <h1 className="mt-2 text-2xl md:text-3xl font-display tracking-tightest text-silver-50">
+            Dobrý den, {firstName}.
+          </h1>
+          <p className="mt-1.5 text-[14px] text-silver-400">
+            Sledujeme{" "}
+            <span className="text-silver-100">{stats.totalTracked}</span> aktivních
+            tendrů, <span className="text-silver-100">{stats.publishedThisWeek}</span> nových
+            tento týden.
+          </p>
         </div>
-        <h1 className="mt-2 text-2xl md:text-3xl font-display tracking-tightest text-silver-50">
-          Dobré ráno, {firstName}.
-        </h1>
-        <p className="mt-1.5 text-[14px] text-silver-400">
-          Máš <span className="text-silver-100">3 nové změny v dokumentaci</span> a{" "}
-          <span className="text-silver-100">7 otevřených rizik</span> k revizi.
-        </p>
+        <div className="flex items-center gap-2 text-[11px] text-silver-500">
+          {lastRun?.lastRunAt && (
+            <span>
+              Naposledy aktualizováno{" "}
+              <span className="text-silver-300">
+                {dateTimeFmt.format(new Date(lastRun.lastRunAt))}
+              </span>
+            </span>
+          )}
+          <button
+            onClick={triggerSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] disabled:opacity-50 text-silver-100 px-2.5 py-1.5 text-[12px] transition-colors"
+          >
+            <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Synchronizuji…" : "Synchronizovat"}
+          </button>
+        </div>
       </motion.div>
+
+      {syncError && (
+        <div className="mt-4 rounded-md border border-rose-400/20 bg-rose-400/[0.06] text-rose-200 text-[12.5px] px-3 py-2">
+          {syncError}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Sledované tendry" value="248" delta="+12 tento týden" Icon={TrendingUp} />
-        <Stat label="Otevřená rizika" value="7" delta="−3 vs. minulý" Icon={AlertTriangle} />
-        <Stat label="Hodiny ušetřené" value="63h" delta="+18 % MoM" Icon={Sparkles} />
-        <Stat label="Úspěšnost bidů" value="34%" delta="+6,2 %" Icon={CheckCircle2} />
+        <Stat label="Sledované tendry" value={stats.totalTracked.toString()} Icon={Radar} />
+        <Stat label="Otevřené" value={stats.openTenders.toString()} Icon={CheckCircle2} />
+        <Stat label="Nové tento týden" value={`+${stats.publishedThisWeek}`} Icon={TrendingUp} />
+        <Stat
+          label="Termín do 14 dní"
+          value={stats.upcomingDeadlines.toString()}
+          Icon={AlertTriangle}
+        />
       </div>
 
-      {/* Tenders + AI panel */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.04]">
+      {/* Sources status */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-silver-500">
+        Zdroje:
+        {syncMeta.map((s) => (
+          <span
+            key={s.code}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 ${
+              s.enabled
+                ? "border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300"
+                : "border-white/[0.06] bg-white/[0.02] text-silver-500"
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                s.enabled ? "bg-emerald-400" : "bg-silver-600"
+              }`}
+            />
+            {s.code}
+            {!s.enabled && " · připravujeme"}
+          </span>
+        ))}
+      </div>
+
+      {/* Tenders list */}
+      <div className="mt-6 rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.04]">
+          <div>
             <h2 className="text-[14px] font-medium tracking-tight text-silver-50">
               Aktivní zakázky
             </h2>
-            <button className="inline-flex items-center gap-1.5 text-[12px] text-silver-400 hover:text-silver-100 transition-colors">
-              <Plus className="h-3 w-3" />
-              Přidat zakázku
-            </button>
-          </div>
-          <div>
-            <TenderRow
-              code="VZ-2026-04412"
-              title="Rekonstrukce energetické infrastruktury — fáze II"
-              org="Ministerstvo dopravy"
-              deadline="14 dní"
-              score={94}
-              risk="medium"
-            />
-            <TenderRow
-              code="VZ-2026-04388"
-              title="Dodávka kybernetické bezpečnostní platformy"
-              org="ČNB"
-              deadline="9 dní"
-              score={88}
-              risk="low"
-              changed
-            />
-            <TenderRow
-              code="VZ-2026-04356"
-              title="Implementace zdravotnického IS"
-              org="Krajský úřad VYS"
-              deadline="22 dní"
-              score={81}
-              risk="low"
-            />
-            <TenderRow
-              code="VZ-2026-04341"
-              title="Modernizace tramvajových vozů"
-              org="DPP"
-              deadline="31 dní"
-              score={76}
-              risk="high"
-            />
-          </div>
-        </div>
-
-        {/* AI panel */}
-        <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex items-center gap-2 text-[12px] text-silver-300">
-              <Sparkles className="h-3.5 w-3.5 text-accent-400" />
-              Veridion Copilot
-            </div>
-            <span className="text-[10px] text-silver-500">před 2 min</span>
-          </div>
-          <div className="mt-4 space-y-3 text-[13px] leading-relaxed text-silver-200">
-            <p>
-              U tendru <span className="text-silver-50">VZ-2026-04412</span> byla detekována{" "}
-              <span className="text-amber-300">kritická změna v příloze č. 3</span>.
-            </p>
-            <p className="text-silver-400">
-              Změna rozšiřuje rozsah požadovaných výkresů z 12 na 18 ks a zkracuje termín plnění o
-              9 dní.
+            <p className="mt-0.5 text-[11px] text-silver-500">
+              {tenders.length} nejnovějších tendrů ze sledovaných zdrojů
             </p>
           </div>
-          <button className="mt-5 w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.06] px-3 py-2 text-[12.5px] text-silver-100 transition-colors">
-            Zobrazit diff
-            <ArrowUpRight className="h-3 w-3" />
-          </button>
+          <span className="text-[10px] uppercase tracking-[0.16em] text-silver-500">
+            Live · auto-refresh denně
+          </span>
         </div>
-      </div>
 
-      {/* Timeline + activity */}
-      <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-medium tracking-tight text-silver-50">
-              Tento týden
-            </h2>
-            <span className="text-[10px] text-silver-500">Květen 2026</span>
+        {tenders.length === 0 ? (
+          <div className="px-5 py-16 text-center text-[13px] text-silver-400">
+            Zatím žádné tendry. Klikni na „Synchronizovat" výše.
           </div>
-          <ul className="mt-5 space-y-3.5">
-            <TimelineItem icon={<CheckCircle2 className="h-3 w-3" />} label="Otázky k zadání — VZ-2026-04412" date="Po 13.05" state="done" />
-            <TimelineItem icon={<AlertTriangle className="h-3 w-3" />} label="Aktualizace dokumentace v3" date="St 15.05" state="alert" />
-            <TimelineItem icon={<FileText className="h-3 w-3" />} label="Interní review — Executive" date="Pá 22.05" state="pending" />
-            <TimelineItem icon={<Calendar className="h-3 w-3" />} label="Termín nabídek — ČNB" date="Po 27.05" state="upcoming" />
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5">
-          <h2 className="text-[14px] font-medium tracking-tight text-silver-50">Tým</h2>
-          <div className="mt-4 space-y-3">
-            {[
-              { name: "Marie Krátká", role: "Bid lead", color: "#3E6BE0" },
-              { name: "Petr Vondráček", role: "Právník", color: "#7C3AED" },
-              { name: "Adam Tichý", role: "Kalkulace", color: "#0EA5E9" },
-              { name: "Jan Novotný", role: "Compliance", color: "#10B981" },
-            ].map((m) => (
-              <div key={m.name} className="flex items-center gap-3">
-                <span
-                  className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
-                  style={{ background: m.color }}
-                >
-                  {m.name.split(" ").map((n) => n[0]).join("")}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[12.5px] text-silver-100 truncate">{m.name}</div>
-                  <div className="text-[10.5px] text-silver-500">{m.role}</div>
-                </div>
-              </div>
+        ) : (
+          <ul>
+            {tenders.map((t, i) => (
+              <TenderRow key={t.id} t={t} index={i} />
             ))}
-          </div>
-          <button className="mt-5 w-full text-[12px] text-silver-400 hover:text-silver-100 transition-colors text-left">
-            + Pozvat kolegu
-          </button>
-        </div>
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -169,12 +209,10 @@ export function WorkspaceHome({ firstName }: { firstName: string }) {
 function Stat({
   label,
   value,
-  delta,
   Icon,
 }: {
   label: string;
   value: string;
-  delta: string;
   Icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
@@ -185,97 +223,94 @@ function Stat({
       className="rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-900/80 to-ink-950 p-5"
     >
       <div className="flex items-center justify-between">
-        <div className="text-[10.5px] uppercase tracking-[0.16em] text-silver-500">{label}</div>
+        <div className="text-[10.5px] uppercase tracking-[0.16em] text-silver-500">
+          {label}
+        </div>
         <Icon className="h-3.5 w-3.5 text-silver-500" />
       </div>
-      <div className="mt-3 text-3xl font-display tracking-tightest text-silver-50">{value}</div>
-      <div className="mt-1 text-[11px] text-silver-400">{delta}</div>
+      <div className="mt-3 text-3xl font-display tracking-tightest text-silver-50 tabular-nums">
+        {value}
+      </div>
     </motion.div>
   );
 }
 
-function TenderRow({
-  code,
-  title,
-  org,
-  deadline,
-  score,
-  risk,
-  changed,
-}: {
-  code: string;
-  title: string;
-  org: string;
-  deadline: string;
-  score: number;
-  risk: "low" | "medium" | "high";
-  changed?: boolean;
-}) {
-  const riskColor =
-    risk === "low" ? "bg-emerald-400" : risk === "medium" ? "bg-amber-400" : "bg-rose-400";
+function TenderRow({ t, index }: { t: TenderListItem; index: number }) {
+  const value = formatValue(t.estimatedValue, t.currency);
+  const deadline = daysUntil(t.deadlineAt);
+  const published = t.publishedAt ? dateFmt.format(t.publishedAt) : null;
+
   return (
-    <div className="grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.015] transition-colors cursor-pointer">
-      <div className="col-span-7 md:col-span-6 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={`h-1.5 w-1.5 rounded-full ${riskColor}`} />
-          <span className="text-[10.5px] text-silver-500 font-mono">{code}</span>
-          {changed && (
-            <span className="text-[9px] rounded-full bg-accent-500/10 text-accent-300 px-1.5 py-0.5 border border-accent-500/20">
-              změna
-            </span>
+    <motion.li
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.5) }}
+      className="grid grid-cols-12 items-center px-5 py-4 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.015] transition-colors gap-3"
+    >
+      <div className="col-span-12 md:col-span-7 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[9.5px] text-silver-300 uppercase tracking-[0.08em]">
+            {t.sourceCode}
+          </span>
+          <span className="text-[10.5px] text-silver-500 font-mono truncate">
+            {t.externalId.replace(/^[a-z]+:/, "")}
+          </span>
+          {published && (
+            <span className="text-[10px] text-silver-500">· {published}</span>
           )}
         </div>
-        <div className="mt-1 text-[13px] text-silver-100 truncate">{title}</div>
+        <a
+          href={t.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 group inline-flex items-center gap-1.5 text-[13.5px] text-silver-100 hover:text-white transition-colors line-clamp-2"
+        >
+          {t.title}
+          <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
+        </a>
+        {t.contractingAuthority && (
+          <div className="mt-1 text-[11.5px] text-silver-400 truncate">
+            {t.contractingAuthority}
+          </div>
+        )}
       </div>
-      <div className="hidden md:block col-span-2 text-[11.5px] text-silver-400 truncate">
-        {org}
-      </div>
-      <div className="hidden md:flex col-span-2 items-center gap-1.5 text-[11.5px] text-silver-400">
-        <Clock className="h-3 w-3" />
-        {deadline}
-      </div>
-      <div className="col-span-5 md:col-span-2 flex items-center justify-end gap-2.5">
-        <div className="h-1.5 w-16 rounded-full bg-white/[0.05] overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-accent-500 to-accent-400"
-            style={{ width: `${score}%` }}
-          />
-        </div>
-        <span className="text-[11.5px] text-silver-100 tabular-nums w-6 text-right">
-          {score}
-        </span>
-      </div>
-    </div>
-  );
-}
 
-function TimelineItem({
-  icon,
-  label,
-  date,
-  state,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  date: string;
-  state: "done" | "upcoming" | "alert" | "pending";
-}) {
-  const colors = {
-    done: "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-    upcoming: "bg-accent-500/10 text-accent-300 border-accent-500/20",
-    pending: "bg-white/[0.04] text-silver-300 border-white/[0.06]",
-    alert: "bg-amber-400/10 text-amber-300 border-amber-400/20",
-  }[state];
-
-  return (
-    <li className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md border ${colors}`}>
-          {icon}
-        </span>
-        <span className="text-[13px] text-silver-200">{label}</span>
+      <div className="col-span-6 md:col-span-2 text-[11.5px] text-silver-300">
+        {value ?? <span className="text-silver-600">—</span>}
       </div>
-      <span className="text-[11.5px] text-silver-500 tabular-nums">{date}</span>
-    </li>
+
+      <div className="col-span-6 md:col-span-2">
+        {deadline ? (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] border ${
+              deadline.tone === "alert"
+                ? "border-rose-400/20 bg-rose-400/[0.06] text-rose-200"
+                : deadline.tone === "warn"
+                ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200"
+                : deadline.tone === "past"
+                ? "border-white/[0.06] bg-white/[0.02] text-silver-500"
+                : "border-white/[0.06] bg-white/[0.02] text-silver-300"
+            }`}
+          >
+            <Clock className="h-3 w-3" />
+            {deadline.label}
+          </span>
+        ) : (
+          <span className="text-[11px] text-silver-600">—</span>
+        )}
+      </div>
+
+      <div className="col-span-12 md:col-span-1 flex md:justify-end">
+        <a
+          href={t.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-[11.5px] text-silver-400 hover:text-silver-100 transition-colors"
+        >
+          Detail
+          <ArrowUpRight className="h-3 w-3" />
+        </a>
+      </div>
+    </motion.li>
   );
 }
