@@ -1,31 +1,29 @@
 import { db, s } from "@/lib/db";
-import { desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 async function main() {
-  const rows = await db
+  const [stats] = await db
     .select({
-      title: s.tenders.title,
-      description: s.tenders.description,
-      buyer: s.tenders.contractingAuthority,
-      procurementType: s.tenders.procurementType,
-      procedureType: s.tenders.procedureType,
-      cpvCodes: s.tenders.cpvCodes,
-      value: s.tenders.estimatedValue,
-      currency: s.tenders.currency,
+      total: sql<number>`count(*)::int`,
+      withPub: sql<number>`count(${s.tenders.publishedAt})::int`,
+      withDeadline: sql<number>`count(${s.tenders.deadlineAt})::int`,
+      withValue: sql<number>`count(${s.tenders.estimatedValue})::int`,
+      withDesc: sql<number>`count(${s.tenders.description})::int`,
+      withNuts: sql<number>`count(${s.tenders.nuts})::int`,
+      withProcedure: sql<number>`count(${s.tenders.procedureType})::int`,
     })
-    .from(s.tenders)
-    .orderBy(desc(s.tenders.publishedAt))
-    .limit(3);
+    .from(s.tenders);
 
-  for (const r of rows) {
-    console.log(`Title:    ${r.title?.slice(0, 80)}`);
-    console.log(`Desc:     ${r.description?.slice(0, 100) ?? "—"}`);
-    console.log(`Buyer:    ${r.buyer}`);
-    console.log(`Type:     ${r.procurementType} · procedure: ${r.procedureType}`);
-    console.log(`CPV:      ${r.cpvCodes?.join(", ") ?? "—"}`);
-    console.log(`Value:    ${r.value} ${r.currency}`);
-    console.log("---");
-  }
+  const total = stats.total;
+  const pct = (n: number) => `${n}/${total} (${Math.round((n / total) * 100)}%)`;
+
+  console.log("=== Pokrytí polí ===");
+  console.log(`Datum publikace:    ${pct(stats.withPub)}`);
+  console.log(`Termín nabídek:     ${pct(stats.withDeadline)}`);
+  console.log(`Odhadovaná hodnota: ${pct(stats.withValue)}`);
+  console.log(`Popis:              ${pct(stats.withDesc)}`);
+  console.log(`NUTS region:        ${pct(stats.withNuts)}`);
+  console.log(`Typ řízení:         ${pct(stats.withProcedure)}`);
 }
 
-main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
+main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

@@ -40,13 +40,18 @@ type TedNotice = {
   "description-proc"?: LocalisedField;
   "buyer-name"?: LocalisedField;
   "contract-nature"?: string[];
-  "procedure-type"?: string[];
+  "procedure-type"?: string | string[];
   "deadline-receipt-tender-date-lot"?: string[];
-  "estimated-value-lot"?: number[];
+  "deadline-receipt-tender-time-lot"?: string[];
+  "deadline-receipt-request-date-lot"?: string[];
+  "deadline-date-part"?: string[];
+  "estimated-value-lot"?: (string | number)[];
   "estimated-value-cur-lot"?: string[];
+  "framework-estimated-value-glo"?: (string | number)[];
+  "framework-maximum-value-glo"?: (string | number)[];
+  "framework-estimated-value-cur-glo"?: string[];
   "classification-cpv"?: string[];
   "place-of-performance"?: string[];
-  "place-performance-nuts-proc"?: string[];
   links?: TedLinks;
   [key: string]: unknown;
 };
@@ -65,9 +70,18 @@ const REQUESTED_FIELDS = [
   "buyer-name",
   "contract-nature",
   "procedure-type",
+  // Deadline (zkusíme víc úrovní — různé typy notice je mají jinde)
   "deadline-receipt-tender-date-lot",
+  "deadline-receipt-tender-time-lot",
+  "deadline-receipt-request-date-lot",
+  "deadline-date-part",
+  // Hodnota — lot úroveň + framework agreement úroveň
   "estimated-value-lot",
   "estimated-value-cur-lot",
+  "framework-estimated-value-glo",
+  "framework-maximum-value-glo",
+  "framework-estimated-value-cur-glo",
+  // Klasifikace
   "classification-cpv",
   "place-of-performance",
   "links",
@@ -104,9 +118,67 @@ function pickFirst<T>(arr: T[] | undefined): T | null {
 
 function parseTedDate(raw?: string | null): Date | null {
   if (!raw) return null;
-  // TED uses formats like "2026-05-13+02:00"
-  const d = new Date(raw);
+  let s = raw.trim();
+  // TED vrací buď "2026-05-13T14:00:00+02:00" nebo jen "2026-05-13+02:00".
+  // Druhý formát není validní pro `new Date()` — doplníme T00:00:00.
+  s = s.replace(/^(\d{4}-\d{2}-\d{2})([+-]\d{2}:\d{2})$/, "$1T00:00:00$2");
+  // Někdy přijde i čistě "2026-05-13" — to Date zvládne.
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Sečte všechny lot hodnoty (TED je vrací jako stringy v poli).
+ * Vrátí součet v haléřích (Kč * 100), nebo null pokud žádná validní hodnota.
+ */
+function sumLotValues(arr: unknown): number | null {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  let sum = 0;
+  let any = false;
+  for (const v of arr) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n) && n > 0) {
+      sum += n;
+      any = true;
+    }
+  }
+  return any ? Math.round(sum * 100) : null;
+}
+
+function dedupeArray<T>(arr: T[] | null | undefined): T[] | null {
+  if (!arr) return null;
+  const seen = new Set<T>();
+  const out: T[] = [];
+  for (const v of arr) {
+    if (!seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out.length ? out : null;
+}
+
+/** Spojí datum + čas (oba jako stringy z TED) do Date. */
+function combineDateAndTime(
+  date?: string | null,
+  time?: string | null
+): Date | null {
+  if (!date) return null;
+  // Normalizuj date — odstraň TZ suffix pokud je
+  const dateOnly = date.replace(/^(\d{4}-\d{2}-\d{2}).*$/, "$1");
+  if (!dateOnly) return null;
+  // Time formát z TED: "14:00:00+02:00"
+  const t = time && /^\d{2}:\d{2}/.test(time) ? time : "00:00:00+02:00";
+  const iso = `${dateOnly}T${t}`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** procedure-type je někdy string ("open"), jindy array (["open"]) */
+function pickProcedureType(v: string | string[] | undefined): string | null {
+  if (!v) return null;
+  if (typeof v === "string") return v;
+  return pickFirst(v);
 }
 
 function buildSourceUrl(links?: TedLinks, pubNumber?: string): string {
@@ -131,9 +203,31 @@ function normalise(notice: TedNotice): NormalizedTender | null {
   const description = pickLocalised(notice["description-proc"]);
   const buyer = pickLocalised(notice["buyer-name"]);
   const publishedAt = parseTedDate(notice["publication-date"]);
-  const deadlineAt = parseTedDate(pickFirst(notice["deadline-receipt-tender-date-lot"]));
-  const valueRaw = pickFirst(notice["estimated-value-lot"]);
-  const valueCur = pickFirst(notice["estimated-value-cur-lot"]);
+
+  // Deadline: zkus víc TED polí — různé typy notice (DNS, framework,
+  // contract) ho mají na jiných úrovních. První neprázdné vyhrává.
+  const deadlineDate =
+    pickFirst(notice["deadline-receipt-tender-date-lot"]) ??
+    pickFirst(notice["deadline-date-part"]) ??
+    pickFirst(notice["deadline-receipt-request-date-lot"]);
+  const deadlineAt = combineDateAndTime(
+    deadlineDate,
+    pickFirst(notice["deadline-receipt-tender-time-lot"])
+  );
+
+  // Hodnota: sečti všechny lot odhady (TED je vrací jako pole stringů).
+  // Když nic, fallback na framework-level total (typické pro DNS/rámcové dohody).
+  const estimatedValue =
+    sumLotValues(notice["estimated-value-lot"]) ??
+    sumLotValues(notice["framework-estimated-value-glo"]) ??
+    sumLotValues(notice["framework-maximum-value-glo"]);
+  const currency =
+    pickFirst(notice["estimated-value-cur-lot"]) ??
+    pickFirst(notice["framework-estimated-value-cur-glo"]);
+
+  // Procurement-nature: bere první neprázdnou, ale TED někdy vrací array
+  // typu ["services","supplies","services"] — vezmi nejčastější
+  const procurementType = majorityOf(notice["contract-nature"]);
 
   return {
     externalId: `ted:${externalId}`,
@@ -142,18 +236,43 @@ function normalise(notice: TedNotice): NormalizedTender | null {
     description,
     contractingAuthority: buyer,
     contractingAuthorityIco: null,
-    cpvCodes: notice["classification-cpv"] ?? null,
-    nuts: null, // TED v3 search neexposuje NUTS samostatně; doplníme z NEN/Věstník
-    procurementType: pickFirst(notice["contract-nature"]),
-    procedureType: pickFirst(notice["procedure-type"]),
-    estimatedValue:
-      typeof valueRaw === "number" ? Math.round(valueRaw * 100) : null,
-    currency: valueCur ?? null,
+    cpvCodes: dedupeArray(notice["classification-cpv"]),
+    nuts: pickNutsCode(notice["place-of-performance"]),
+    procurementType,
+    procedureType: pickProcedureType(notice["procedure-type"]),
+    estimatedValue,
+    currency: currency ?? "CZK",
     status: "open",
     publishedAt,
     deadlineAt,
     raw: notice as Record<string, unknown>,
   };
+}
+
+/** Vrátí nejčastější hodnotu v poli (modus). Pro contract-nature typu
+ *  ["services","supplies","services","services"] vrátí "services". */
+function majorityOf(arr: string[] | undefined | null): string | null {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const v of arr) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const [k, c] of counts) {
+    if (c > bestCount) {
+      best = k;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+/** Vybere první NUTS kód (formát CZ080, CZ010…) ignoruje země code (CZE). */
+function pickNutsCode(arr: string[] | undefined | null): string | null {
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  for (const v of arr) {
+    if (typeof v === "string" && /^CZ\d/.test(v)) return v;
+  }
+  return null;
 }
 
 export const tedAdapter: SourceAdapter = {

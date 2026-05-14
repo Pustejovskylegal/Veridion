@@ -9,8 +9,10 @@ async function main() {
   console.log("→ Seeding sources …");
   await ensureSources();
 
-  console.log("→ Ingesting all enabled sources …");
-  const results = await ingestAll({ limit: 50 });
+  // Větší limit při ručním běhu — chceme refresh všech existujících
+  const limit = Number(process.argv[2]) || 100;
+  console.log(`→ Ingesting all enabled sources (limit ${limit}) …`);
+  const results = await ingestAll({ limit });
 
   for (const r of results) {
     if (r.ok) {
