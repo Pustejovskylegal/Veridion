@@ -11,14 +11,29 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Veridion — Inteligentní workspace pro veřejné zakázky",
   description:
-    "AI-poháněný enterprise workspace pro monitoring, analýzu a řízení veřejných zakázek. Jeden systém pro celý životní cyklus tendru.",
-  metadataBase: new URL("https://veridion.ai"),
+    "AI workspace pro monitoring, analýzu a řízení veřejných zakázek. Jeden systém pro celý životní cyklus tendru.",
+  metadataBase: new URL("https://veridion.cz"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title: "Veridion — Inteligentní workspace pro veřejné zakázky",
     description:
-      "AI-poháněný enterprise workspace pro monitoring, analýzu a řízení veřejných zakázek.",
+      "AI workspace pro monitoring, analýzu a řízení veřejných zakázek. Jeden systém pro celý životní cyklus tendru.",
+    url: "https://veridion.cz",
+    siteName: "Veridion",
     type: "website",
     locale: "cs_CZ",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Veridion — Inteligentní workspace pro veřejné zakázky",
+    description:
+      "AI workspace pro monitoring, analýzu a řízení veřejných zakázek.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
