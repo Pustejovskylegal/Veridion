@@ -149,6 +149,7 @@ async function upsertTenders(sourceId: string, tenders: NormalizedTender[]) {
       .onConflictDoUpdate({
         target: [s.tenders.sourceId, s.tenders.externalId],
         set: {
+          sourceUrl: t.sourceUrl,
           title: t.title,
           contractingAuthority: t.contractingAuthority ?? null,
           contractingAuthorityIco: t.contractingAuthorityIco ?? null,

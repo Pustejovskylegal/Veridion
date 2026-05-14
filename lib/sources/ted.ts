@@ -19,11 +19,25 @@ type TedLinks = {
   xml?: Record<string, string>;
 };
 
+/**
+ * TED API vrací lokalizované textové pole buď jako string nebo array stringů.
+ * Klíče jsou ISO 639-3 (ces, eng, deu, …).
+ */
+type LocalisedField =
+  | (Record<string, string | string[]> & {
+      ces?: string | string[];
+      eng?: string | string[];
+    })
+  | string
+  | undefined
+  | null;
+
 type TedNotice = {
   "publication-number"?: string;
   "publication-date"?: string;
-  "notice-title"?: { ces?: string[]; eng?: string[] } & Record<string, string[]>;
-  "buyer-name"?: { ces?: string[]; eng?: string[] } & Record<string, string[]>;
+  "notice-title"?: LocalisedField;
+  "title-proc"?: LocalisedField;
+  "buyer-name"?: LocalisedField;
   "contract-nature"?: string[];
   "deadline-receipt-tender-date-lot"?: string[];
   "estimated-value-lot"?: number[];
@@ -42,6 +56,7 @@ type TedResponse = {
 const REQUESTED_FIELDS = [
   "publication-number",
   "notice-title",
+  "title-proc",
   "publication-date",
   "buyer-name",
   "contract-nature",
@@ -53,17 +68,27 @@ const REQUESTED_FIELDS = [
   "links",
 ];
 
-function pickLocalised(
-  field: { ces?: string[]; eng?: string[] } & Record<string, string[]> | undefined,
-  fallbackKey?: string
-): string | null {
+const LOCALE_PRIORITY = ["ces", "slk", "eng", "deu"];
+
+function pickLocalised(field: LocalisedField): string | null {
   if (!field) return null;
-  if (field.ces && field.ces.length) return field.ces[0];
-  if (field.eng && field.eng.length) return field.eng[0];
-  if (fallbackKey && field[fallbackKey]?.length) return field[fallbackKey][0];
-  const firstKey = Object.keys(field)[0];
-  if (firstKey && Array.isArray(field[firstKey]) && field[firstKey].length) {
-    return field[firstKey][0];
+  if (typeof field === "string") return field;
+
+  for (const lang of LOCALE_PRIORITY) {
+    const v = field[lang];
+    if (typeof v === "string" && v.trim()) return v;
+    if (Array.isArray(v) && v.length && typeof v[0] === "string" && v[0].trim()) {
+      return v[0];
+    }
+  }
+
+  // Fallback — první neprázdná hodnota
+  for (const key of Object.keys(field)) {
+    const v = (field as Record<string, unknown>)[key];
+    if (typeof v === "string" && v.trim()) return v;
+    if (Array.isArray(v) && v.length && typeof v[0] === "string" && v[0].trim()) {
+      return v[0];
+    }
   }
   return null;
 }
@@ -80,8 +105,8 @@ function parseTedDate(raw?: string | null): Date | null {
 }
 
 function buildSourceUrl(links?: TedLinks, pubNumber?: string): string {
-  // Prefer the user-friendly detail page (`html`), never the raw `htmlDirect`
-  // which TED serves as a downloadable file with Content-Disposition.
+  // Prefer user-friendly detail page; never the raw `htmlDirect` which TED
+  // serves with Content-Disposition: attachment.
   if (links?.html?.CES) return links.html.CES;
   if (links?.html?.ENG) return links.html.ENG;
   if (pubNumber) return `https://ted.europa.eu/cs/notice/-/detail/${pubNumber}`;
@@ -92,7 +117,9 @@ function normalise(notice: TedNotice): NormalizedTender | null {
   const externalId = notice["publication-number"];
   if (!externalId) return null;
 
+  // `title-proc` (procedure title) je čitelnější než `notice-title`
   const title =
+    pickLocalised(notice["title-proc"]) ??
     pickLocalised(notice["notice-title"]) ??
     `TED notice ${externalId}`;
 
@@ -130,8 +157,7 @@ export const tedAdapter: SourceAdapter = {
     const limit = Math.min(options?.limit ?? 50, 250);
 
     const body = {
-      query:
-        "(place-of-performance=CZE) SORT BY publication-date DESC",
+      query: "(place-of-performance=CZE) SORT BY publication-date DESC",
       fields: REQUESTED_FIELDS,
       limit,
       page: 1,
@@ -145,7 +171,6 @@ export const tedAdapter: SourceAdapter = {
         Accept: "application/json",
       },
       body: JSON.stringify(body),
-      // Server-side calls, no caching at fetch layer
       cache: "no-store",
     });
 
